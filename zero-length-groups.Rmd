@@ -1,0 +1,78 @@
+---
+title: "zero length groups"
+author: "Romain François"
+date: "12/04/2018"
+output: md_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## install 
+
+This is based on the `feature-341-zero-length-groups` branch: 
+
+```r
+devtools::install_github("tidyverse/dplyr", ref = "feature-341-zero-length-groups")
+```
+
+## Motivation
+
+See the [full discussion](https://github.com/tidyverse/dplyr/issues/341) and the 
+original [stackoverflow question](http://stackoverflow.com/questions/22523131). 
+
+`dplyr` had the `drop` attribute in grouped data frames all along, but it did not really 
+do anything about it, so in effect it has always been like if `drop` was set to TRUE. 
+
+`drop=FALSE` is about keeping groups even if they have no data. 
+
+```{r}
+df <- data.frame( x = 1:2, g = factor(c("a", "b"), levels = c("a", "b", "c")))
+df
+
+tally(group_by(df, g, drop = TRUE))
+tally(group_by(df, g, drop = FALSE))
+```
+
+With `drop=FALSE` the level "c" appears in the summary, with n=0. 
+
+## Which groups to keep
+
+The problem is that we don't always group on factors, and so the question that has kept the 
+341 issue alive for 4 years is which groups. 
+
+```{r}
+df <- data.frame( 
+  x  = 1:8,
+  y  = rep(1:4, each=2),
+  f1 = factor( rep(c("a", "b"), each = 4), levels = c("a", "b", "c")) 
+)
+df
+```
+
+- f1 has two distinct values in the data, but 3 levels
+- y has 4 distinct values, but only two for the level "a" of f1 and 2 for the "b" level, and obviously 0 for the "c" level
+
+```{r}
+group_by(df, f1, drop = FALSE) %>% 
+  summarise( n_distinct(y) )
+```
+
+So I'm not sure about what happens when we group by f1 and y, and when we group by y and f1. 
+
+What we have currently in the `feature-341-zero-length-groups` is the cartesian product of 
+levels of factors and unique values of non factors, so in that case we end with 12 groups
+in both case
+
+```{r}
+group_by(df, y, f1, drop = FALSE) %>% tally() %>% arrange(desc(n))
+group_by(df, f1, y, drop = FALSE) %>% tally() %>% arrange(desc(n))
+```
+
+In the thread issue, there are a lot of "we should keep all the groups only for factors", 
+but I have no idea what to make of this. 
+
+
+
