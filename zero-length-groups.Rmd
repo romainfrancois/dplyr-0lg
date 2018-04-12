@@ -2,7 +2,7 @@
 title: "zero length groups"
 author: "Romain François"
 date: "12/04/2018"
-output: md_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -74,5 +74,56 @@ group_by(df, f1, y, drop = FALSE) %>% tally() %>% arrange(desc(n))
 In the thread issue, there are a lot of "we should keep all the groups only for factors", 
 but I have no idea what to make of this. 
 
+## verbs support
 
+```{r}
+gdf <- data.frame( 
+  x  = 1:8,
+  y  = rep(1:4, each=2),
+  f1 = factor( rep(c("a", "b"), each = 4), levels = c("a", "b", "c")) 
+) %>% group_by(f1, y, drop = FALSE)
+```
 
+With minor changes, here is what dplyr verbs do in the presence of 0 length groups:
+
+### filter 
+
+the attributes are recalculated after the filtering, so we keep all the levels of factors but might lose 
+groups that are not from factors. 
+
+```{r}
+filter( gdf, x > 4)
+```
+
+the alternative would be to keep all the groups. might be tricky. 
+
+### mutate
+
+mutate executes the expression for each group so the same rule as usual applies, the result of the 
+expression must be either length 0 (size of the group) or length 1 so that it's recycled 0 times `r emo::ji("scream")`
+
+```{r}
+mutate( gdf, x = print(x))
+```
+
+### summarise
+
+summarise applies the expression to each group, e.g. 
+
+```{r}
+summarise( gdf, nx = n_distinct(x) )
+```
+
+### arrange
+
+The metadata attributes are recalculated. No issue. 
+
+### bind_rows
+
+The metadata attribute are calculated after the values are bind. The `drop` 
+attribute of the first object decides. 
+
+### joins
+
+joins only make lazy grouped data frames. The drop attribute is passed through, 
+so when the metadata is materialised later it respect `drop`. 
